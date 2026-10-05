@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "lutm-build-status",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-10-05",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "durable_objects": {"bindings": [{"name": "BUILD_MONITOR", "class_name": "BuildMonitor"}]},
+  "migrations": [{"tag": "v1", "new_sqlite_classes": ["BuildMonitor"]}],
+  "vars": {
+    "DEPOT_BUILD_ROOT": "/home/runner",
+    "DEPOT_BUILD_PRODUCT": "virtio_arm64only"
+  },
+  "alias": {"@connectrpc/connect-node": "./web-transport.mjs"},
+  "rules": [{"type": "Text", "globs": ["**/*.py"], "fallthrough": true}]
+}
