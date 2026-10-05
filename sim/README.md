@@ -96,16 +96,21 @@ both the product packages and the corresponding board configuration.
 
 ### Live build status
 
-The managed Preview runs `sim/status`, a status page that samples Depot every
-45 seconds and shows both layouts, checks, failures, freshness and verified
-download links. It runs independently of chat turns. The Depot key stays on
-the server; it is never sent to the browser. No Convex deployment is required.
+`sim/status` deploys to **Cloudflare Workers**, with a one-minute Durable Object
+alarm and persistent SQLite-backed snapshots. Both the page and polling run in the
+cloud; no managed Preview or chat turn is needed to keep them alive. Page
+requests read saved status rather than starting Depot commands. Depot
+credentials stay in a Worker secret and are never sent to the browser.
 
-Run `npm ci --prefix sim/status` and `npm start --prefix sim/status` outside the
-managed Preview. `BUILD_STATUS_BUILDER_FILE` selects the local Depot builder
-state JSON. Authentication uses `DEPOT_TOKEN`, or a private file selected with
-`DEPOT_TOKEN_FILE` (default `~/.config/hoplite-depot/token`). The default builder
-state is the current thread's ignored dual-layout runtime file.
+The tracker shows both layouts, truthful build/check states, failures,
+freshness and verified public download links. A build-only run is labeled
+**built**, not uploaded or complete. Detailed logs remain private; public
+activity contains numerical progress and safe failure summaries only.
+
+See [the cloud tracker runbook](status/README.md) for launch, deployment and
+local development. `npm run launch --prefix sim/status` creates a bounded
+Depot builder and starts the existing dual-layout build. It requires
+authorized Depot access; deploying the tracker alone does not start a build.
 
 For a clean Ubuntu build host with the
 [Android build dependencies](https://source.android.com/docs/setup/start/requirements)
