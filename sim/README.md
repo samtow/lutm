@@ -96,11 +96,11 @@ both the product packages and the corresponding board configuration.
 
 ### Live build status
 
-`sim/status` deploys to **Cloudflare Workers**, with a one-minute Durable Object
-alarm and persistent SQLite-backed snapshots. Both the page and polling run in the
+`sim/status` deploys to **Convex production**, with a one-minute cron job
+and persistent database snapshots. Both the page and polling run in the
 cloud; no managed Preview or chat turn is needed to keep them alive. Page
 requests read saved status rather than starting Depot commands. Depot
-credentials stay in a Worker secret and are never sent to the browser.
+credentials stay in Convex environment variables and are never sent to the browser.
 
 The tracker shows both layouts, truthful build/check states, failures,
 freshness and verified public download links. A build-only run is labeled

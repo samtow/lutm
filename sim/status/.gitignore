@@ -3,3 +3,5 @@ __pycache__/
 .wrangler/
 .dev.vars*
 .env*
+convex/bundled.js
+convex/_generated/

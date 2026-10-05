@@ -3,17 +3,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --ip 0.0.0.0 --port 3000",
-    "deploy": "wrangler deploy --keep-vars",
-    "check": "wrangler deploy --dry-run --outdir ../../.hoplite/artifacts/cloud-tracker",
+    "dev": "node preview.mjs",
+    "deploy": "node bundle-assets.mjs && convex deploy",
+    "check": "node bundle-assets.mjs && convex codegen && convex deploy --dry-run",
     "launch": "node launch.mjs",
     "test": "python3 -m unittest discover -s . -p 'test_*.py' && node --test *.test.mjs"
   },
   "dependencies": {
     "@depot/sandbox": "0.1.0-beta.4",
-    "@connectrpc/connect-web": "2.2.0"
-  },
-  "devDependencies": {
-    "wrangler": "4.147.0"
+    "convex": "1.46.0"
   }
 }
