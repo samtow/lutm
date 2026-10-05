@@ -82,8 +82,10 @@ npm run dev --prefix sim/status
 Wrangler serves the same Worker and assets on port 3000 using local durable
 storage. To exercise collection, place local values in the ignored
 `sim/status/.dev.vars` file and open the page to arm its local alarm. The
-managed Preview is development-only and can be stopped after verification.
-Production does not depend on it.
+managed Preview is disabled by default: automatic sandbox startup exits
+without a server. For an explicit managed development preview, temporarily
+set the project's run command to `LUTM_LOCAL_PREVIEW=1 bash .hoplite/run.sh`,
+then restore it afterwards. Production does not depend on local Preview.
 
 References: [static assets](https://developers.cloudflare.com/workers/static-assets/),
 [Durable Object alarms](https://developers.cloudflare.com/durable-objects/api/alarms/),
