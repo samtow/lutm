@@ -74,11 +74,12 @@ test('launch dispatches a detached build and persists only private non-secret st
 
   assert.deepEqual(clientOptions, {token: 'local-test-token', orgID: 'test-org'})
   assert.deepEqual(createOptions.resources, {vcpus: 48, memoryMb: 196608, diskGb: 1200})
-  assert.deepEqual(createOptions.runtime, {imageRef: 'ubuntu:24.04'})
+  assert.equal('runtime' in createOptions, false)
   assert.deepEqual(createOptions.env, {HOME: '/home/runner'})
   assert.equal(createOptions.timeoutMinutes, 360)
   assert.equal(createOptions.disableTailnet, true)
   assert.equal(commandOptions.cmd, '/bin/bash')
+  assert.equal(commandOptions.sudo, true)
   assert.equal(commandOptions.detached, true)
   assert.deepEqual(commandOptions.args, ['/tmp/depot-build.sh', '/home/runner', 'virtio_arm64only', commit, '/tmp/lutm-sim.tar'])
   assert.equal('env' in commandOptions, false)
@@ -161,6 +162,8 @@ test('build root and product overrides are forwarded consistently', async (t) =>
   })
 
   assert.deepEqual(createOptions.env, {HOME: root})
+  assert.equal('runtime' in createOptions, false)
+  assert.equal(commandOptions.sudo, true)
   assert.deepEqual(commandOptions.args, ['/tmp/depot-build.sh', root, product, 'c'.repeat(40), '/tmp/lutm-sim.tar'])
   assert.deepEqual(JSON.parse(await readFile(stateFile, 'utf8')), {
     sandboxId: 'sandbox-config-override',

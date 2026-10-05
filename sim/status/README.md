@@ -21,8 +21,10 @@ Authentication uses `DEPOT_TOKEN` or a private `DEPOT_TOKEN_FILE` (default
 `~/.config/hoplite-depot/token`). Set `DEPOT_ORG_ID` when the token requires an
 organization. Never put credentials in Git, command-line arguments or chat.
 
-The launcher transfers the tracked `sim/` sources at local `HEAD`, installs
-Ubuntu build prerequisites, and starts `sim/build.sh` detached in Depot. It
+The launcher uses Depot's default base image, transfers the tracked `sim/`
+sources at local `HEAD`, installs Ubuntu build prerequisites as root, and
+starts `sim/build.sh` detached in Depot. Public-registry images such as
+`ubuntu:24.04` are not supported by Depot sandboxes. It
 prints `DEPOT_SANDBOX_ID` and saves nonsecret recovery information under
 `.hoplite/runtime/`. The default product is `virtio_arm64only`; set
 `DEPOT_BUILD_PRODUCT=virtio_x86_64` for x86_64. Builds are billable and have a
