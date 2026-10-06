@@ -9,14 +9,54 @@ case "$PRODUCT" in
     *) echo "ci-build.sh: unsupported product" >&2; exit 2 ;;
 esac
 ROOT="${DEPOT_BUILD_ROOT:-/tmp/lutm-build}"
-TREE="$CACHE/android/lineage"
-mkdir -p "$TREE" "$ROOT/android"
-ln -sfn "$TREE" "$ROOT/android/lineage"
+mkdir -p "$ROOT"
+ROOT="$(realpath "$ROOT")"
+TREE="$ROOT/android/lineage"
+SNAPSHOT="$CACHE/android.tar"
+MIN_LOCAL_GIB="${CI_MIN_LOCAL_GIB:-400}"
+case "$MIN_LOCAL_GIB" in
+    ''|*[!0-9]*) echo "ci-build.sh: CI_MIN_LOCAL_GIB must be a nonnegative integer" >&2; exit 2 ;;
+esac
+filesystem="$(findmnt -n -o FSTYPE -T "$ROOT")"
+if [[ "$filesystem" = fuse* ]]; then
+    echo "ci-build.sh: active Android builds require a local filesystem, not a FUSE mount" >&2
+    exit 2
+fi
+python3 - "$ROOT" "$CACHE" "$SNAPSHOT" "$MIN_LOCAL_GIB" <<'PY'
+import os
+from pathlib import Path
+import sys
+
+root, cache, snapshot = map(Path, sys.argv[1:4])
+if root == cache or root.is_relative_to(cache) or cache.is_relative_to(root):
+    raise SystemExit('ci-build.sh: local working directory and durable cache must be separate')
+space = os.statvfs(root)
+available = space.f_bavail * space.f_frsize
+minimum = int(sys.argv[4]) * 1024 ** 3
+required = max(minimum, snapshot.stat().st_size + 32 * 1024 ** 3 if snapshot.exists() else 0)
+print(f'ci-build.sh: local disk has {available / 1024 ** 3:.1f} GiB free; requires {required / 1024 ** 3:.1f} GiB')
+if available < required:
+    raise SystemExit('ci-build.sh: insufficient local disk for the Android checkout and both layouts; use a larger local disk')
+PY
+if [ "${3:-}" = --check-storage ]; then
+    exit 0
+fi
+if [ -e "$TREE" ] || [ -L "$TREE" ]; then
+    echo "ci-build.sh: local working tree already exists; refusing to overwrite it" >&2
+    exit 2
+fi
+mkdir -p "$TREE"
 rm -f "$ROOT"/*.exit "$ROOT/.lutm-status.json"
 : > "$ROOT/build.log"
 printf '{"product":"%s"}\n' "$PRODUCT" > "$ROOT/.lutm-build.json"
 
 prepare_sources() {
+    if [ -f "$SNAPSHOT" ]; then
+        echo 'ci-build.sh: restoring Android cache to local disk'
+        tar --extract --file "$SNAPSHOT" --directory "$TREE" --no-same-owner || return $?
+    else
+        echo 'ci-build.sh: no archive checkpoint; starting a cold local build'
+    fi
     # These are CI-owned sources changed by apply.sh and the host repair.
     for project in device/virt/virtio-common device/google/cuttlefish vendor/lineage prebuilts/bootmgr build/make; do
         if [ -e "$TREE/$project/.git" ]; then
@@ -31,7 +71,7 @@ prepare_sources() {
     fi
 }
 
-if prepare_sources > "$ROOT/bootstrap.log" 2>&1; then
+if prepare_sources 2>&1 | tee "$ROOT/bootstrap.log"; then
     printf '0\n' > "$ROOT/bootstrap.exit"
 else
     status=$?
@@ -52,3 +92,12 @@ else
     printf '%s\n' "$status" > "$ROOT/build.exit"
     exit "$status"
 fi
+
+echo 'ci-build.sh: saving Android cache from local disk'
+checkpoint="$(mktemp "$CACHE/android.tar.XXXXXX")"
+trap 'rm -f "$checkpoint"' EXIT
+# A single sequential write avoids remote metadata I/O for every build file.
+tar --create --sparse --file "$checkpoint" --directory "$TREE" --exclude='./out/releases' .
+mv -f "$checkpoint" "$SNAPSHOT"
+trap - EXIT
+echo 'ci-build.sh: Android cache checkpoint saved'

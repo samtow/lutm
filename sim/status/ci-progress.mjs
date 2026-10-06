@@ -1,8 +1,11 @@
 const layouts = ['non-ab', 'ab']
 const stages = {
+  'Check local Android workspace capacity': 'Checking local build storage',
   'Install Android prerequisites': 'Installing Android prerequisites',
   'Mount Android source and output cache': 'Mounting Android cache',
+  'Mount Android archive checkpoint cache': 'Mounting Android cache',
   'Build both partition layouts incrementally': 'Syncing sources',
+  'Restore cache, build on local disk, save checkpoint': 'Preparing local Android workspace',
   'Publish checked release artifacts': 'Uploading CI artifacts',
 }
 
@@ -16,10 +19,14 @@ export function applyProgress(snapshot, cursor, lines) {
     if (Number.isFinite(timestamp) && timestamp > 0) snapshot.logUpdatedAt = new Date(timestamp).toISOString()
     const line = String(entry.body || '').replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '').trim()
     if (stages[entry.stepName]) {
-      cursor.stage = entry.stepName === 'Build both partition layouts incrementally' && cursor.layout
+      cursor.stage = ['Build both partition layouts incrementally', 'Restore cache, build on local disk, save checkpoint'].includes(entry.stepName) && cursor.layout
         ? buildStage(cursor)
         : stages[entry.stepName]
     }
+    if (line === 'ci-build.sh: restoring Android cache to local disk') cursor.stage = 'Restoring Android cache'
+    if (line === 'ci-build.sh: saving Android cache from local disk') cursor.stage = 'Saving Android cache'
+    if (line === 'ci-build.sh: Android cache checkpoint saved') cursor.stage = 'Android cache saved'
+    if (line === 'ci-build.sh: no archive checkpoint; starting a cold local build' || line.startsWith('repo has been initialized in ')) cursor.stage = 'Syncing sources'
     if (line.startsWith('TARGET_BUILD_VARIANT=')) {
       const variant = line.slice('TARGET_BUILD_VARIANT='.length)
       if (['user', 'userdebug'].includes(variant)) cursor.variant = variant

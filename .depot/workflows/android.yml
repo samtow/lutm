@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: lutm-lineage-23-2-${{ inputs.product || 'virtio_arm64only' }}
+  group: lutm-lineage-23-2-local-v2-${{ inputs.product || 'virtio_arm64only' }}
   cancel-in-progress: false
 
 jobs:
@@ -30,23 +30,28 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Check local Android workspace capacity
+        run: |
+          mkdir -p /tmp/lutm-cache-capacity
+          bash sim/ci-build.sh /tmp/lutm-cache-capacity "$PRODUCT" --check-storage
+
       - name: Install Android prerequisites
         run: bash sim/install-build-deps.sh
 
-      - name: Mount Android source and output cache
+      - name: Mount Android archive checkpoint cache
         uses: depot/cache-mount@38d61fd25163e9ef3a3eff8a61676994d306e549 # v1
         with:
-          name: samtow-lutm-lineage-23-2-${{ env.PRODUCT }}-v1
+          name: samtow-lutm-lineage-23-2-${{ env.PRODUCT }}-local-v2
           path: /mnt/lutm-cache
 
-      - name: Build both partition layouts incrementally
+      - name: Restore cache, build on local disk, save checkpoint
         run: bash sim/ci-build.sh /mnt/lutm-cache "$PRODUCT"
 
       - name: Publish checked release artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: lutm-${{ env.PRODUCT }}-${{ github.run_id }}
-          path: /mnt/lutm-cache/android/lineage/out/releases/${{ env.PRODUCT }}/
+          path: /tmp/lutm-build/android/lineage/out/releases/${{ env.PRODUCT }}/
           if-no-files-found: error
           compression-level: 0
           retention-days: 14

@@ -99,16 +99,18 @@ both the product packages and the corresponding board configuration.
 
 ### Cached Depot CI builds
 
-Use the native `.depot/workflows/android.yml` workflow for repeat builds. It
-mounts a durable, product-specific cache containing the Android checkout and
-both isolated layout output trees. Subsequent runs sync updated sources and
-build incrementally rather than starting with a new empty sandbox.
+Use the native `.depot/workflows/android.yml` workflow for repeat builds on a
+runner with sufficient local storage. It restores a product-specific archive
+checkpoint to local disk, syncs and builds there, then saves a new checkpoint
+with a sequential write to durable storage. Active Git/compiler I/O does not
+run on the remote cache filesystem.
 
 The workflow is manually dispatched, uses 32 CPUs / 128 GiB, serializes writes
 to each product cache, and publishes checked release artifacts only after the
 whole build succeeds. It does not automatically start another build when a PR
-is pushed. See [the CI runbook](ci/README.md) for the repository-access approval
-and launch commands. The first cache population remains a cold Android build.
+is pushed. See [the CI runbook](ci/README.md) for the storage preflight and launch
+commands. The measured native runner disk is currently too small for this
+local workflow; the original cache-mounted run is left unchanged.
 
 ### Live build status
 

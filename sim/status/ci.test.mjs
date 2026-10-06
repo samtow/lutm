@@ -154,6 +154,17 @@ test('layout transitions reset progress and staged releases remain built', () =>
   assert.deepEqual(snapshot.recent, ['Build actions: 5% (5/100)'])
 })
 
+test('local cache phases use known labels rather than raw transfer logs', () => {
+  const snapshot = initialSnapshot(environment())
+  const cursor = {}
+  applyProgress(snapshot, cursor, [{body: 'ci-build.sh: restoring Android cache to local disk'}])
+  assert.equal(snapshot.stage, 'Restoring Android cache')
+  applyProgress(snapshot, cursor, [{body: 'ci-build.sh: saving Android cache from local disk'}])
+  assert.equal(snapshot.stage, 'Saving Android cache')
+  applyProgress(snapshot, cursor, [{body: 'ci-build.sh: Android cache checkpoint saved'}])
+  assert.equal(snapshot.stage, 'Android cache saved')
+})
+
 test('successful native CI completion marks images built without public download claims', async () => {
   const result = await refreshCIStatus(environment(), api(run('finished')))
   assert.equal(result.status, 'built')
