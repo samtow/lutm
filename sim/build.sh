@@ -89,7 +89,9 @@ build_layout() (
         check_layout "$layout"
         m -j"${BUILD_JOBS:-$(nproc)}" recoveryimage
         PRODUCT_OUT="$(get_build_var PRODUCT_OUT)"
-        cp "$PRODUCT_OUT/recovery.img" "$PRODUCT_OUT/recovery_${IMAGE_ARCH}-userdebug.img"
+        # Variant installclean removes product images, including renamed backups.
+        userdebug_recovery="$OUT_DIR/recovery_${IMAGE_ARCH}-userdebug.img"
+        cp "$PRODUCT_OUT/recovery.img" "$userdebug_recovery"
     fi
 
     breakfast "$PRODUCT" user
@@ -118,7 +120,7 @@ build_layout() (
     artifacts=("$utm_name" "$ota_name" "boot_${IMAGE_ARCH}-$layout.img")
     if [ "$layout" = non-ab ]; then
         cp "$PRODUCT_OUT/recovery.img" "$release_dir/recovery_${IMAGE_ARCH}-$layout.img"
-        cp "$PRODUCT_OUT/recovery_${IMAGE_ARCH}-userdebug.img" \
+        cp "$userdebug_recovery" \
             "$release_dir/recovery_${IMAGE_ARCH}-$layout-userdebug.img"
         artifacts+=("recovery_${IMAGE_ARCH}-$layout.img" \
             "recovery_${IMAGE_ARCH}-$layout-userdebug.img")
