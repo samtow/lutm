@@ -8,7 +8,7 @@ const terminal = new Set(['built', 'complete', 'failed', 'stopped'])
 export async function sampleStatus(env, collector, getBuilder = Sandbox.get) {
   try {
     return env.DEPOT_CI_RUN_ID
-      ? await refreshCIStatus(env, collector, (settings, source) => refreshStatus(settings, source, getBuilder))
+      ? await refreshCIStatus(env)
       : await refreshStatus(env, collector, getBuilder)
   } finally {
     const nextSampleAt = Date.now() + refreshSeconds * 1000
