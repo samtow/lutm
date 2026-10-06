@@ -162,6 +162,8 @@ The non-A/B build follows [jqssun/android-lineage-qemu's sequence](https://githu
 bundle and OTA. The A/B build uses `AB_OTA_UPDATER=true` and `user`. The helper
 checks each layout before compilation and never substitutes a standalone
 recovery image for `vendor_boot`.
+The userdebug recovery is saved at the layout output root before the variant
+switch, outside the product directory that Android's installclean removes.
 
 Build outputs are isolated in `out/non-ab` and `out/ab` (under `OUT_DIR` when
 set within the Android tree). Absolute paths inside the tree are normalized to

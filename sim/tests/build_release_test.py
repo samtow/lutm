@@ -45,6 +45,11 @@ elif operation == "build":
     output = Path(os.environ["OUT_DIR"]) / "target/product" / os.environ["TARGET_PRODUCT"]
     output.mkdir(parents=True, exist_ok=True)
     variant = os.environ["TARGET_BUILD_VARIANT"]
+    previous_variant = Path(os.environ["OUT_DIR"]) / ".mock-last-variant"
+    if previous_variant.exists() and previous_variant.read_text() != variant:
+        for image in output.glob("*.img"):
+            image.unlink()
+    previous_variant.write_text(variant)
     layout = "ab" if os.environ["AB_OTA_UPDATER"] == "true" else "non-ab"
     if layout == "non-ab":
         (output / "recovery.img").write_text(layout + " " + variant + " recovery")
@@ -200,6 +205,15 @@ class BuildReleaseTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.check_release("virtio_arm64only", "non-ab", result.stdout)
         self.assertFalse((self.tree / "out/ab").exists())
+
+    def test_userdebug_recovery_survives_the_variant_installclean(self):
+        result = self.build(layout="non-ab")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.check_release("virtio_arm64only", "non-ab", result.stdout)
+        output = self.tree / "out/non-ab"
+        self.assertEqual((output / "recovery_arm64only-userdebug.img").read_text(),
+                         "non-ab userdebug recovery")
+        self.assertFalse((output / "target/product/virtio_arm64only/recovery_arm64only-userdebug.img").exists())
 
     def test_single_ab_build_ships_vendor_boot_not_standalone_recovery(self):
         result = self.build(layout="ab")
