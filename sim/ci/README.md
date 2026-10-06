@@ -7,9 +7,8 @@ workflow. It uses a native Depot CI 32-vCPU / 128-GiB sandbox and
 ## One-time repository approval
 
 Install the [Depot Code Access app](https://depot.dev/orgs/_/github-actions/installation/create?codeAccess=true)
-and grant it access to `samtow/lutm`. The authorized preflight currently reports
-that this app is missing. No CI build can be started until that approval is
-complete; a Depot Sandbox API credential alone does not grant repository access.
+and grant it access to `samtow/lutm`. A Depot Sandbox API credential alone does
+not grant repository access; the CI preflight verifies the separate approval.
 
 The repository setup installs the official Depot CLI. Configure `DEPOT_TOKEN`
 securely in its environment, then check access:
@@ -69,9 +68,11 @@ Convex can follow a native CI run without manual job-sandbox IDs. Set
 `DEPOT_CI_RUN_ID` to the returned run ID in the tracker deployment, and ensure
 `DEPOT_BUILD_PRODUCT` matches the workflow input. The existing protected
 `DEPOT_TOKEN` is reused. Polling resolves the latest `build` job attempt and
-collects progress from its sandbox; retries reset old progress, and CI terminal
+reads progress from native CI logs; retries reset old progress, and CI terminal
 status remains visible after that sandbox exits. CI output files are available
 through Depot's artifact commands, not falsely labeled as public GoFile uploads.
+Log cursors stay private and only numerical progress or known stage labels are
+published. Native CI sandboxes are not accessed through the standalone Sandbox API.
 
 Leave `DEPOT_CI_RUN_ID` unset while tracking the current detached build. Clearing
 it restores `DEPOT_SANDBOX_ID` mode. Convex remains cloud-hosted in either mode.
