@@ -1,8 +1,25 @@
 # Cached Android builds on native Depot CI
 
 The workflow is `.depot/workflows/android.yml`, not a GitHub-hosted runner
-workflow. It uses a native Depot CI 32-vCPU / 128-GiB sandbox and
-`depot/cache-mount` to persist `/mnt/lutm-cache` between runs.
+workflow. It uses a native Depot CI 32-vCPU / 128-GiB sandbox. The active
+Android checkout and both output trees are local under `/tmp/lutm-build`;
+`depot/cache-mount` holds only a bulk archive checkpoint.
+
+## Current storage constraint
+
+The existing 32-vCPU native CI runner was measured at 150 GB provisioned local
+disk (145.2 GiB filesystem), with about 94 GiB free after its image/tools/cache
+client. The direct Sandbox build already occupied 254.4 GiB with A/B incomplete.
+Local builds therefore use a conservative **400 GiB free** preflight, and a warm restore also
+requires room for its archive contents plus headroom, before downloads begin.
+
+Native CI's published `runs-on` options configure CPU/memory and optional
+custom image, not disk size. This is not proof of a provider-wide hard cap;
+there is no documented workflow disk override to apply here. The separate
+Sandbox SDK supports `diskGb`, and the existing direct builder has a 1-TB disk.
+Do not lower the guard to make the current native runner pass: it cannot hold
+the measured build. A larger native local disk must be available before a
+parallel local-I/O run can start. No known-insufficient run is launched.
 
 ## One-time repository approval
 
@@ -40,17 +57,22 @@ The current detached build is deliberately left running while CI is prepared.
 
 ## Cache boundaries
 
-- Cache names include repository, Lineage branch, product and a version. Keep
-  the mount path stable; bump `v1` when intentionally invalidating the cache.
-- Each product has its own checkout and outputs. Both partition layouts retain
+- The `local-v2` cache and concurrency group are separate from the original
+  live `v1` tree. The two modes may run in parallel without reading or modifying
+  each other's cache. Each v2 product still has only one checkpoint writer.
+- `android.tar` is streamed to local disk before source sync; Git checkout,
+  compilation and packaging run locally at a stable path. Both layouts retain
   their separate `out/non-ab` and `out/ab` directories.
-- A product-wide concurrency group permits only one writer across branches,
-  with `cancel-in-progress: false`; sync and compilation never race on a cache.
+- After a successful build, GNU tar preserves links and sparse files while
+  writing a temporary archive directly to the durable mount. Only a completed
+  archive is renamed into place; failed builds or saves leave the prior good
+  checkpoint intact. No second archive copy consumes local scratch space.
 - Before sync, the wrapper resets only the five source projects modified by
   our overlay/host repair and removes managed generated overlay files. It does
   not clean the compiler output trees or unrelated untracked source files.
 - Sources are synced every run; `SKIP_SYNC` cannot bypass sync in this workflow.
-  Compiler output is reusable, but old release staging is removed first.
+  Compiler output is reusable, but old release staging is removed first and
+  release artifacts are excluded from checkpoints.
 - Only a successful complete build uploads release artifacts. Failed runs retain
   diagnostics, not stale releases. Archives use zero additional compression.
 - The overlay also fixes the observed non-A/B OTA ZIP failure by preserving
@@ -59,8 +81,9 @@ The current detached build is deliberately left running while CI is prepared.
 Cache disks are organization-wide, not repository-private: never store
 credentials or untrusted output on them. The workflow only permits manual
 trusted runs, not fork-PR triggers. Depot's default cache retention is 14 days;
-after expiration the next run is cold. Cold-run speedups or warm-cache savings
-have not been benchmarked yet, because CI access is not approved.
+after expiration the next run is cold. Local-I/O speedups and warm-cache
+savings have not been benchmarked yet,
+because the measured native runner does not have enough local storage.
 
 ## Permanent tracker
 
