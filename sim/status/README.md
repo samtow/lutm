@@ -9,6 +9,9 @@ Production tracker: <https://tacit-cod-390.convex.site/>
 
 ## Launch the Depot build
 
+For repeat builds, prefer the [native cached Depot CI workflow](../ci/README.md).
+The detached launcher below remains available for direct sandbox builds.
+
 Use Node.js 20 or newer and authorized Depot sandbox access:
 
 ```sh
@@ -43,6 +46,7 @@ Set these environment variables on that deployment:
 |---|---|
 | `DEPOT_TOKEN` | Server-side Depot credential |
 | `DEPOT_SANDBOX_ID` | Actual running builder from the launcher |
+| `DEPOT_CI_RUN_ID` | Native CI run ID; when set, it takes precedence over the sandbox ID |
 | `DEPOT_ORG_ID` | Optional organization required by some tokens |
 | `DEPOT_BUILD_ROOT` | Builder root, normally `/home/runner` |
 | `DEPOT_BUILD_PRODUCT` | `virtio_arm64only` or `virtio_x86_64` |

@@ -1,12 +1,15 @@
 import {createClient, Sandbox} from '@depot/sandbox'
 import {configurationError, initialSnapshot, refreshSeconds, snapshotKey} from './status.mjs'
+import {refreshCIStatus} from './ci.mjs'
 
 export {initialSnapshot, refreshSeconds, serve} from './status.mjs'
 const terminal = new Set(['built', 'complete', 'failed', 'stopped'])
 
 export async function sampleStatus(env, collector, getBuilder = Sandbox.get) {
   try {
-    return await refreshStatus(env, collector, getBuilder)
+    return env.DEPOT_CI_RUN_ID
+      ? await refreshCIStatus(env, collector, (settings, source) => refreshStatus(settings, source, getBuilder))
+      : await refreshStatus(env, collector, getBuilder)
   } finally {
     const nextSampleAt = Date.now() + refreshSeconds * 1000
     await env.BUILD_STATUS.put('sampler', JSON.stringify({

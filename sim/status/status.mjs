@@ -1,11 +1,12 @@
 export const refreshSeconds = 60
-export const snapshotKey = env => `snapshot:${env.DEPOT_SANDBOX_ID}`
+export const snapshotKey = env => env.DEPOT_CI_RUN_ID ? `ci:${env.DEPOT_CI_RUN_ID}` : `snapshot:${env.DEPOT_SANDBOX_ID}`
 
 export function trackerEnvironment(source) {
   // Convex's default runtime exposes environment values through property reads.
   return {
     DEPOT_TOKEN: source.DEPOT_TOKEN,
     DEPOT_SANDBOX_ID: source.DEPOT_SANDBOX_ID,
+    DEPOT_CI_RUN_ID: source.DEPOT_CI_RUN_ID,
     DEPOT_ORG_ID: source.DEPOT_ORG_ID,
     DEPOT_BUILD_ROOT: source.DEPOT_BUILD_ROOT,
     DEPOT_BUILD_PRODUCT: source.DEPOT_BUILD_PRODUCT,
@@ -13,7 +14,7 @@ export function trackerEnvironment(source) {
 }
 
 export function configurationError(env) {
-  return !env.DEPOT_TOKEN || !env.DEPOT_SANDBOX_ID
+  return !env.DEPOT_TOKEN || (!env.DEPOT_SANDBOX_ID && !env.DEPOT_CI_RUN_ID)
     ? 'Depot access and the builder ID are not configured for this tracker.'
     : null
 }

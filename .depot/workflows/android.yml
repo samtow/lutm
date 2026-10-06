@@ -1,0 +1,61 @@
+name: Cached Android images
+
+on:
+  workflow_dispatch:
+    inputs:
+      product:
+        description: Android target
+        type: choice
+        default: virtio_arm64only
+        options:
+          - virtio_arm64only
+          - virtio_x86_64
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lutm-lineage-23-2-${{ inputs.product || 'virtio_arm64only' }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: depot-ubuntu-24.04-32
+    timeout-minutes: 360
+    env:
+      PRODUCT: ${{ inputs.product || 'virtio_arm64only' }}
+      DEPOT_BUILD_ROOT: /tmp/lutm-build
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install Android prerequisites
+        run: bash sim/install-build-deps.sh
+
+      - name: Mount Android source and output cache
+        uses: depot/cache-mount@38d61fd25163e9ef3a3eff8a61676994d306e549 # v1
+        with:
+          name: samtow-lutm-lineage-23-2-${{ env.PRODUCT }}-v1
+          path: /mnt/lutm-cache
+
+      - name: Build both partition layouts incrementally
+        run: bash sim/ci-build.sh /mnt/lutm-cache "$PRODUCT"
+
+      - name: Publish checked release artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: lutm-${{ env.PRODUCT }}-${{ github.run_id }}
+          path: /mnt/lutm-cache/android/lineage/out/releases/${{ env.PRODUCT }}/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Retain diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: lutm-logs-${{ env.PRODUCT }}-${{ github.run_id }}
+          path: /tmp/lutm-build/*.log
+          if-no-files-found: ignore
+          retention-days: 7

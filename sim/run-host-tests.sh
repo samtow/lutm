@@ -26,6 +26,8 @@ fi
 
 python3 "$HERE/tests/boot_integration_test.py"
 python3 "$HERE/tests/build_release_test.py"
+python3 "$HERE/tests/ci_build_test.py"
+python3 "$HERE/tests/ota_zip_test.py"
 python3 "$HERE/tests/upload_gofile_test.py"
 
 CXX="${CXX:-}"
