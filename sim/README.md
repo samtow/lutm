@@ -87,6 +87,9 @@ before `breakfast`. This checkout does not include a top-level `build.sh`.
 6. Fixes Lineage's kernel output-prefix rule for the relative `out/non-ab` and
    `out/ab` directories. Soong rejects absolute paths in some modules, while the
    kernel's `make -C` needs source-relative paths prefixed by the Android tree.
+7. Preserves symlinks when the non-A/B OTA tool archives an unpacked target-files
+   directory. Otherwise the recovery `d` link can traverse the host's debugfs,
+   causing a ZIP failure or a stalled package step.
 
 Missing device/Cuttlefish sources or an unrecognized RIL transport are errors,
 not warnings followed by apparent success. `TARGET_NO_TELEPHONY=true` disables
@@ -94,13 +97,26 @@ both the product packages and the corresponding board configuration.
 
 ## Building the images
 
+### Cached Depot CI builds
+
+Use the native `.depot/workflows/android.yml` workflow for repeat builds. It
+mounts a durable, product-specific cache containing the Android checkout and
+both isolated layout output trees. Subsequent runs sync updated sources and
+build incrementally rather than starting with a new empty sandbox.
+
+The workflow is manually dispatched, uses 32 CPUs / 128 GiB, serializes writes
+to each product cache, and publishes checked release artifacts only after the
+whole build succeeds. It does not automatically start another build when a PR
+is pushed. See [the CI runbook](ci/README.md) for the repository-access approval
+and launch commands. The first cache population remains a cold Android build.
+
 ### Live build status
 
-`sim/status` deploys to **Cloudflare Workers**, with a one-minute Durable Object
-alarm and persistent SQLite-backed snapshots. Both the page and polling run in the
+`sim/status` deploys to **Convex production**, with a one-minute cron job
+and persistent database snapshots. Both the page and polling run in the
 cloud; no managed Preview or chat turn is needed to keep them alive. Page
 requests read saved status rather than starting Depot commands. Depot
-credentials stay in a Worker secret and are never sent to the browser.
+credentials stay in Convex environment variables and are never sent to the browser.
 
 The tracker shows both layouts, truthful build/check states, failures,
 freshness and verified public download links. A build-only run is labeled

@@ -16,6 +16,7 @@ DEVICE="$TREE/device/virt/virtio-common"
 CF_MS="$TREE/device/google/cuttlefish/host/commands/modem_simulator"
 RIL="$TREE/device/google/cuttlefish/guest/hals/ril/reference-ril/reference-ril.c"
 KERNEL_CONFIG="$TREE/vendor/lineage/config/BoardConfigKernel.mk"
+OTA_SOURCE="$TREE/build/make/tools/releasetools/non_ab_ota.py"
 if [ ! -d "$DEVICE" ]; then
     echo "apply.sh: device tree not found at $DEVICE" >&2
     echo "apply.sh: run this after 'repo sync', e.g. '$0 android/lineage'" >&2
@@ -23,7 +24,7 @@ if [ ! -d "$DEVICE" ]; then
 fi
 
 for required in "$DEVICE/device-common.mk" "$DEVICE/BoardConfigCommon.mk" \
-    "$CF_MS/pdu_parser.cpp" "$RIL" "$KERNEL_CONFIG"; do
+    "$CF_MS/pdu_parser.cpp" "$RIL" "$KERNEL_CONFIG" "$OTA_SOURCE"; do
     if [ ! -f "$required" ]; then
         echo "apply.sh: required source not found: $required" >&2
         echo "apply.sh: sync the complete LineageOS tree before applying the overlay" >&2
@@ -34,6 +35,8 @@ if ! grep -Eq 'VMADDR_CID_(HOST|LOCAL)' "$RIL"; then
     echo "apply.sh: unsupported guest RIL transport in $RIL; expected a VSOCK CID" >&2
     exit 1
 fi
+
+python3 "$HERE/patch_ota_zip.py" "$OTA_SOURCE"
 
 # Lineage's kernel make rules otherwise treat custom relative outputs as absolute.
 python3 - "$KERNEL_CONFIG" <<'PY'

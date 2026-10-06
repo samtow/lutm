@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import {ensureSampling, initialSnapshot, refreshStatus, sampleOnAlarm, serve} from './poll.mjs'
+import {initialSnapshot, refreshStatus, sampleStatus, serve} from './poll.mjs'
+import {trackerEnvironment} from './status.mjs'
 
 function environment(overrides = {}) {
   const entries = new Map()
@@ -30,6 +31,18 @@ test('unconfigured polling does not contact Depot or invent resources', async ()
   assert.equal((await serve(new Request('https://tracker.test/api/status'), env)).status, 200)
 })
 
+test('the HTTP runtime can read configuration from non-enumerable environment variables', async () => {
+  const source = new Proxy({}, {get: (target, key) => ({DEPOT_TOKEN: 'test-secret', DEPOT_SANDBOX_ID: 'builder-one'})[key]})
+  assert.deepEqual({...source}, {})
+  const env = environment(trackerEnvironment(source))
+  const sample = {...initialSnapshot(env), status: 'running', stage: 'Syncing sources', connection: 'live'}
+  await env.BUILD_STATUS.put('snapshot:builder-one', JSON.stringify(sample))
+  const result = await (await serve(new Request('https://tracker.test/api/status'), env)).json()
+  assert.equal(result.status, 'running')
+  assert.equal(result.connection, 'live')
+  assert.ok(!JSON.stringify(result).includes('test-secret'))
+})
+
 test('a scheduled sample is persisted and public reads only use storage', async () => {
   const env = environment()
   const sample = {...initialSnapshot(env), status: 'running', stage: 'Building non-A/B', sampledAt: new Date().toISOString()}
@@ -37,6 +50,8 @@ test('a scheduled sample is persisted and public reads only use storage', async 
   const builder = runningBuilder(sample, async options => {
     commands++
     assert.deepEqual(options.args, ['20', 'python3', '-c', 'collector-source', '/home/runner', 'virtio_arm64only'])
+    assert.equal(options.cwd, '/tmp')
+    assert.equal(options.sudo, true)
     return {wait: async () => ({exitCode: 0}), stdout: async () => JSON.stringify(sample)}
   })
   await refreshStatus(env, 'collector-source', async (client, id) => {
@@ -137,39 +152,20 @@ test('asset responses retain security headers and API methods are read-only', as
   assert.equal((await serve(new Request('https://tracker.test/api/unknown'), env)).status, 404)
 })
 
-test('reads initialize one cloud alarm without postponing an existing alarm', async () => {
-  let alarm = null
-  let writes = 0
-  const storage = {
-    async getAlarm() { return alarm },
-    async setAlarm(value) { alarm = value; writes++ },
-  }
-  await ensureSampling(storage)
-  const firstAlarm = alarm
-  await ensureSampling(storage)
-  assert.equal(writes, 1)
-  assert.equal(alarm, firstAlarm)
-  assert.ok(alarm > Date.now())
-})
-
-test('cloud alarms persist a heartbeat and continue without viewers or Depot credentials', async () => {
+test('scheduled sampling persists a heartbeat without viewers or Depot credentials', async () => {
   const env = environment({DEPOT_TOKEN: ''})
-  let nextAlarm
-  const storage = {async setAlarm(value) { nextAlarm = value }}
-  await sampleOnAlarm(env, '', storage, () => assert.fail('No authorized Depot call'))
+  await sampleStatus(env, '', () => assert.fail('No authorized Depot call'))
   const result = await (await serve(new Request('https://tracker.test/api/status'), env)).json()
   assert.equal(result.status, 'unconfigured')
   assert.ok(result.sampler.sampledAt)
-  assert.equal(Date.parse(result.sampler.nextSampleAt), nextAlarm)
+  assert.ok(Date.parse(result.sampler.nextSampleAt) > Date.now())
 })
 
-test('cloud sampling failures still schedule the next alarm', async () => {
+test('cloud sampling failures still persist the heartbeat', async () => {
   const env = environment()
-  let nextAlarm
-  const storage = {async setAlarm(value) { nextAlarm = value }}
-  await sampleOnAlarm(env, '', storage, async () => { throw new Error('private provider error') })
+  await sampleStatus(env, '', async () => { throw new Error('private provider error') })
   const result = await (await serve(new Request('https://tracker.test/api/status'), env)).json()
   assert.equal(result.connection, 'unavailable')
-  assert.ok(nextAlarm > Date.now())
+  assert.ok(Date.parse(result.sampler.nextSampleAt) > Date.now())
   assert.ok(result.sampler.sampledAt)
 })

@@ -164,6 +164,9 @@ class ApplyTest(unittest.TestCase):
             "    KERNEL_BUILD_OUT_PREFIX := $(BUILD_TOP)/\n"
             "endif\n"
         )
+        self.ota_source = self.tree / "build/make/tools/releasetools/non_ab_ota.py"
+        self.ota_source.parent.mkdir(parents=True)
+        self.ota_source.write_text('command = ["zip", tmpfile, "-r", ".", "-0"]\n')
 
     def apply(self):
         return subprocess.run(
@@ -188,6 +191,7 @@ class ApplyTest(unittest.TestCase):
         self.assertEqual(self.snapshot(), snapshot)
         self.assertIn("VMADDR_CID_LOCAL", self.ril.read_text())
         self.assertNotIn("VMADDR_CID_HOST", self.ril.read_text())
+        self.assertIn('"-y"', self.ota_source.read_text())
         self.assertEqual(
             (self.device / "device-common.mk").read_text().count(
                 "$(call inherit-product, device/virt/virtio-common/virtio-sim.mk)"

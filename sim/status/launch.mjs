@@ -114,7 +114,6 @@ export async function launch({
   try {
     sandbox = await sdk.Sandbox.create(client, {
       resources: config.resources,
-      runtime: {imageRef: 'ubuntu:24.04'},
       env: {HOME: config.root},
       timeoutMinutes: buildTimeoutMinutes,
       disableTailnet: true,
@@ -126,6 +125,7 @@ export async function launch({
     await sandbox.runCommand({
       cmd: '/bin/bash',
       args: [remoteBootstrapPath, config.root, config.product, source.commit, archivePath],
+      sudo: true,
       detached: true,
     })
 
