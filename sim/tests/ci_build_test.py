@@ -75,15 +75,22 @@ exit "${RESULT:-0}"
         self.assertEqual((self.cache / 'android.tar').read_bytes(), original)
 
     def test_ci_owned_source_edits_are_reset_without_cleaning_output_trees(self):
+        for relative, name in (
+            ('device/virt/virtio-common', 'device-common.mk'),
+            ('device/virt/virtio_arm64only', 'lineage_virtio_arm64only.mk'),
+        ):
+            project = self.tree / relative
+            project.mkdir(parents=True)
+            subprocess.run(['git', 'init', '-q', str(project)], check=True)
+            tracked = project / name
+            tracked.write_text('upstream\n')
+            subprocess.run(['git', '-C', str(project), 'add', '.'], check=True)
+            subprocess.run(['git', '-C', str(project), '-c', 'user.name=Fixture',
+                            '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'fixture'], check=True)
+            tracked.write_text('previous overlay\n')
         project = self.tree / 'device/virt/virtio-common'
-        project.mkdir(parents=True)
-        subprocess.run(['git', 'init', '-q', str(project)], check=True)
         tracked = project / 'device-common.mk'
-        tracked.write_text('upstream\n')
-        subprocess.run(['git', '-C', str(project), 'add', '.'], check=True)
-        subprocess.run(['git', '-C', str(project), '-c', 'user.name=Fixture',
-                        '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'fixture'], check=True)
-        tracked.write_text('previous overlay\n')
+        (project / 'virtio-sim-product.mk').write_text('stale root priority helper\n')
         stale = project / 'modem_simulator/obsolete.cpp'
         stale.parent.mkdir()
         stale.write_text('removed overlay')
@@ -93,6 +100,11 @@ exit "${RESULT:-0}"
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         working = self.status / 'android/lineage'
         self.assertEqual((working / 'device/virt/virtio-common/device-common.mk').read_text(), 'upstream\n')
+        self.assertEqual(
+            (working / 'device/virt/virtio_arm64only/lineage_virtio_arm64only.mk').read_text(),
+            'upstream\n',
+        )
+        self.assertFalse((working / 'device/virt/virtio-common/virtio-sim-product.mk').exists())
         self.assertFalse((working / 'device/virt/virtio-common/modem_simulator/obsolete.cpp').exists())
         self.assertTrue((working / 'device/virt/virtio-common/unrelated.txt').exists())
         self.assertTrue((working / 'out/ab/compiled.o').exists())

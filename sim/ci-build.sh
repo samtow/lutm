@@ -58,14 +58,16 @@ prepare_sources() {
         echo 'ci-build.sh: no archive checkpoint; starting a cold local build'
     fi
     # These are CI-owned sources changed by apply.sh and the host repair.
-    for project in device/virt/virtio-common device/google/cuttlefish vendor/lineage prebuilts/bootmgr build/make; do
+    for project in device/virt/virtio-common device/virt/virtio_arm64 \
+        device/virt/virtio_arm64only device/virt/virtio_x86_64 \
+        device/google/cuttlefish vendor/lineage prebuilts/bootmgr build/make; do
         if [ -e "$TREE/$project/.git" ]; then
             git -C "$TREE/$project" reset --hard || return $?
         fi
     done
     if [ -e "$TREE/device/virt/virtio-common/.git" ]; then
         git -C "$TREE/device/virt/virtio-common" clean -fd -- \
-            virtio-sim.mk virtio-sim-board.mk framework-overlay modem_console \
+            virtio-sim.mk virtio-sim-board.mk virtio-sim-product.mk framework-overlay modem_console \
             modem_simulator sepolicy/vendor-sim configs/init/init.virtio.sim.rc \
             configs/properties/vendor.sim.prop || return $?
     fi

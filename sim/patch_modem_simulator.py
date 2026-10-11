@@ -22,7 +22,10 @@ of sim/apply.sh, so this always starts from pristine upstream files.
 """
 
 import os
+from pathlib import Path
+import subprocess
 import sys
+import patch_channel_monitor
 
 EDITS = []
 
@@ -574,13 +577,30 @@ def apply_edits(root):
     failures = []
     changed = 0
     skipped = 0
+    planned = {}
+    monitor_cpp = Path(root) / "channel_monitor.cpp"
+    concurrent_monitor = (
+        monitor_cpp.is_file() and
+        '#include "channel_monitor_concurrency.inc"' in monitor_cpp.read_text()
+    )
+    if concurrent_monitor:
+        if not patch_channel_monitor.check(root):
+            return 0, 0, ["channel monitor concurrency patch is incomplete or modified"]
     for item in EDITS:
         path = os.path.join(root, item["path"])
         if not os.path.isfile(path):
             failures.append(f"{item['path']}: not found in {root}")
             continue
-        with open(path, encoding="utf-8") as handle:
-            content = handle.read()
+        if item["path"] not in planned:
+            planned[item["path"]] = Path(path).read_text()
+        content = planned[item["path"]]
+        # This exact legacy method is now supplied by the verified queued
+        # implementation. Do not mistake its intentional replacement for a
+        # missing broadcast fix when validating already-patched sources.
+        if (concurrent_monitor and
+                item["what"] == "channel_monitor.cpp: implement the control-plane broadcast"):
+            skipped += 1
+            continue
         if item["new"] in content:
             skipped += 1
             continue
@@ -590,10 +610,20 @@ def apply_edits(root):
                 f"({content.count(item['old'])} found) - upstream source changed?"
             )
             continue
-        with open(path, "w", encoding="utf-8") as handle:
-            handle.write(content.replace(item["old"], item["new"]))
+        planned[item["path"]] = content.replace(item["old"], item["new"])
         changed += 1
-        print(f"patch: {item['what']}")
+    if not failures and not concurrent_monitor:
+        try:
+            planned.update(patch_channel_monitor.render(
+                planned["channel_monitor.h"], planned["channel_monitor.cpp"],
+            ))
+        except ValueError as error:
+            failures.append(str(error))
+    if not failures:
+        for name, content in planned.items():
+            path = Path(root) / name
+            if not path.exists() or path.read_text() != content:
+                path.write_text(content)
     return changed, skipped, failures
 
 
@@ -613,6 +643,9 @@ def main():
     print(f"patch_modem_simulator.py: {changed} applied, {skipped} already applied")
     if changed == 0 and skipped == 0:
         print("patch_modem_simulator.py: nothing to patch", file=sys.stderr)
+        return 1
+    if not patch_channel_monitor.check(root):
+        print("patch_modem_simulator.py: concurrency verification failed", file=sys.stderr)
         return 1
     return 0
 

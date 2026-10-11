@@ -24,6 +24,7 @@ def build_config(no_telephony="false", package_overlays=""):
             "inherit-product =\n"
             "include virtio-sim.mk\n"
             "include virtio-sim-board.mk\n"
+            "include virtio-sim-product.mk\n"
             ".PHONY: config\n"
             "config:\n"
             "\t@printf '%s\\n' 'packages=$(strip $(PRODUCT_PACKAGES))' "
@@ -147,6 +148,12 @@ class ApplyTest(unittest.TestCase):
         self.device.mkdir(parents=True)
         for name in ("device-common.mk", "BoardConfigCommon.mk"):
             (self.device / name).write_text("# fixture\n")
+        self.product = self.tree / "device/virt/virtio_arm64only/lineage_virtio_arm64only.mk"
+        self.product.parent.mkdir(parents=True)
+        self.product.write_text(
+            "$(call inherit-product, vendor/lineage/config/wifionly.mk)\n"
+            "$(call inherit-product, device/virt/virtio_arm64only/device.mk)\n"
+        )
         cuttlefish = self.tree / "device/google/cuttlefish"
         shutil.copytree(
             SIM / "reference/modem_simulator/host/commands/modem_simulator",
@@ -198,6 +205,74 @@ class ApplyTest(unittest.TestCase):
             ),
             1,
         )
+        self.assertEqual(
+            self.product.read_text().count(
+                "include device/virt/virtio-common/virtio-sim-product.mk"
+            ),
+            1,
+        )
+
+    def effective_overlays(self, no_telephony="false"):
+        # Keep Android's inheritance markers until the parent has been read.
+        # The old flat fixture discarded them and missed Wi-Fi-only precedence.
+        fixture = self.tree / "overlay-priority.mk"
+        fixture.write_text(
+            f"TARGET_NO_TELEPHONY := {no_telephony}\n"
+            "inherit-product = $(eval PRODUCT_PACKAGE_OVERLAYS += @inherit:$(strip $(1)))\n"
+            f"include {self.product.relative_to(self.tree)}\n"
+            # Model the old device-local prepend as a negative control.
+            "device_overlays := device/virt/virtio-common/framework-overlay\n"
+            "expanded := $(subst @inherit:vendor/lineage/config/wifionly.mk,"
+            "vendor/lineage/overlay/wifionly,"
+            "$(subst @inherit:device/virt/virtio_arm64only/device.mk,"
+            "$(device_overlays),$(PRODUCT_PACKAGE_OVERLAYS)))\n"
+            ".PHONY: overlays\n"
+            "overlays:\n\t@printf '%s\\n' '$(strip $(expanded))'\n"
+        )
+        return subprocess.check_output(
+            ["make", "--no-print-directory", "-f", str(fixture), "overlays"],
+            cwd=self.tree, text=True,
+        ).split()
+
+    def test_root_overlay_outranks_earlier_wifi_only_inheritance(self):
+        self.assertEqual(
+            self.effective_overlays()[0], "vendor/lineage/overlay/wifionly",
+            "negative control must reproduce the old device-local failure",
+        )
+        result = self.apply()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            self.effective_overlays()[0],
+            "device/virt/virtio-common/framework-overlay",
+        )
+        self.assertEqual(
+            self.effective_overlays("true")[0],
+            "vendor/lineage/overlay/wifionly",
+        )
+
+    def test_all_lineage_product_variants_get_root_priority(self):
+        variants = [
+            self.tree / "device/virt/virtio_arm64only/lineage_virtio_arm64only_16k.mk",
+            self.tree / "device/virt/virtio_x86_64/lineage_virtio_x86_64.mk",
+        ]
+        for variant in variants:
+            variant.parent.mkdir(parents=True, exist_ok=True)
+            variant.write_text("# product fixture\n")
+        result = self.apply()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for variant in variants:
+            self.assertIn(
+                "include device/virt/virtio-common/virtio-sim-product.mk",
+                variant.read_text(),
+            )
+
+    def test_missing_root_products_fails_before_installing_overlay(self):
+        self.product.unlink()
+        snapshot = self.snapshot()
+        result = self.apply()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("no top-level Lineage virtio products", result.stderr)
+        self.assertEqual(self.snapshot(), snapshot)
 
     def test_missing_ril_fails_before_installing_the_overlay(self):
         self.ril.unlink()
