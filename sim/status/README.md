@@ -5,14 +5,15 @@ preview account. Convex hosts the page, stores builder-isolated snapshots in
 its database, and runs a one-minute cron job. There is no 60-minute account
 claim deadline or sandbox polling server. Normal Convex plan limits apply.
 
-Production tracker: <https://tacit-cod-390.convex.site/>
+Production tracker: <https://doting-chickadee-597.convex.site/>
 
 ## Launch the Depot build
 
-For repeat builds, prefer the [native cached Depot CI workflow](../ci/README.md).
-The detached launcher below remains available for direct sandbox builds.
+The current setup uses the direct Sandbox launcher below. The
+[native cached Depot CI workflow](../ci/README.md) remains available, but its
+local-disk path requires more storage than the currently available CI runner.
 
-Use Node.js 20 or newer and authorized Depot sandbox access:
+Use Node.js 22 or newer and authorized Depot sandbox access:
 
 ```sh
 npm ci --prefix sim/status
@@ -39,6 +40,26 @@ Create a Convex project and its default **production** deployment using the
 official CLI or dashboard. Production deployments do not accept a temporary
 expiration time. Configure a production deploy key in the deployment
 environment as `CONVEX_DEPLOY_KEY`; keep it out of the repository.
+
+Alternatively, use a Convex account access token in `CONVEX_ACCESS_TOKEN` to
+create and manage a project. The CLI wrapper also recognizes an account token
+already stored under `CONVEX_DEPLOY_KEY` when it lacks a deployment prefix.
+An account token is not a deployment key: the wrapper passes it through the
+CLI's account authentication path instead. Authentication failures remain
+errors; it does not create an anonymous or temporary deployment.
+
+For a new project, run:
+
+```sh
+node sim/status/convex-cli.mjs project create lutm-build-status --team YOUR_TEAM
+node sim/status/convex-cli.mjs deployment create YOUR_TEAM:lutm-build-status:production \
+  --type prod --default
+```
+
+Set the nonsecret `CONVEX_DEPLOYMENT=prod:<returned-deployment-name>` in the
+environment or the ignored `sim/status/.env.local`. Convex does not support
+`--select` for production deployments. Confirm the target before deploying,
+and use `node sim/status/convex-cli.mjs env ...` for its environment commands.
 
 Set these environment variables on that deployment:
 
