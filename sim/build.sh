@@ -54,7 +54,14 @@ RELEASE_ROOT="$OUTPUT_ROOT/releases/$PRODUCT"
 IMAGE_ARCH="${PRODUCT#virtio_}"
 
 check_layout() {
-    local layout="$1" recovery_size
+    local layout="$1" recovery_size overlays
+    if [ "$(get_build_var TARGET_NO_TELEPHONY)" != true ]; then
+        overlays="$(get_build_var PRODUCT_PACKAGE_OVERLAYS)"
+        if [ "${overlays%% *}" != device/virt/virtio-common/framework-overlay ]; then
+            echo "build.sh: SIM framework overlay must have highest product priority; refusing to build a Wi-Fi-only SIM image" >&2
+            exit 1
+        fi
+    fi
     if [ "$(get_build_var AB_OTA_UPDATER)" != "$AB_OTA_UPDATER" ]; then
         echo "build.sh: board configuration does not match the requested $layout layout" >&2
         exit 1

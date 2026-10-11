@@ -44,6 +44,20 @@ vsock **loopback** (`VMADDR_CID_LOCAL`) instead.
 
 ## What `apply.sh` does
 
+The console client registry is owned by the modem's monitor thread. Registration,
+responses, broadcasts and closes are queued from other threads; callback-created
+requests retain FIFO order. Queue draining is bounded so a reconnect/broadcast
+burst cannot starve radio reads or disconnect cleanup. Disconnected clients are
+removed only between iterations, and shutdown uses a nonblocking wakeup.
+Accepted radio and console sockets are switched to nonblocking mode before use.
+Pending responses are capped at 256 KiB per client; a slow client is disconnected
+rather than sent a truncated response. Unterminated AT commands over 64 KiB are
+rejected.
+`run-host-tests.sh` compiles the actual patched monitor with POSIX host bindings
+and stresses concurrent console clients, RIL events, EOF cleanup, full-sized
+reads and shutdown. These host bindings are test-only; Android uses Cuttlefish's
+real descriptor and logging libraries.
+
 Run `bash /path/to/lutm/sim/apply.sh /path/to/android/lineage` after `repo sync`,
 before `breakfast`. This checkout does not include a top-level `build.sh`.
 
@@ -323,8 +337,17 @@ under `/data/vendor/modem_simulator` with a vendor data type.
 Once the modem was running, the inherited Wi-Fi-only overlay still declared
 zero physical SIM slots. `UiccController` then crashed when the modem reported
 slot 0. The SIM-specific framework overlay now declares one slot and enables
-the voice, SMS and mobile-data capability flags. Its product-overlay path is
-prepended so the Wi-Fi-only values cannot override it.
+the voice, SMS and mobile-data capability flags.
+
+The ARM64 non-A/B release shared on 20261008 still resolved this resource to
+`0`: its modem and radio HAL were running and `AT+CPIN?` returned `READY`, but
+Android exposed no SIM. A prepend inside the device branch was insufficient:
+the top-level Lineage product inherits Wi-Fi-only before that branch.
+`apply.sh` now directly includes `virtio-sim-product.mk` in each top-level
+Lineage virtio product, putting the SIM overlay before all inherited branches.
+The build refuses compilation if the resolved product-overlay list does not
+put it first. This source correction requires a new image; it does not repair
+the already uploaded release.
 
 On a disposable x86_64 copy of the shared archive, the socket-policy repair
 and these resource overrides were boot-tested with SELinux enforcing:
@@ -422,7 +445,7 @@ same exemption, which is why `modem_simulator.te` mirrors it under
 
 ## Verification status
 
-Current host checks: thirteen boot-wiring/application regressions, ten offline
+Current host checks: sixteen boot-wiring/application regressions, thirteen offline
 release-build regressions, nine offline
 upload regressions, 60 PDU checks, and a real-socket console regression covering
 the default, custom and maximum-length abstract socket names

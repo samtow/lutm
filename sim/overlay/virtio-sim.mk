@@ -8,8 +8,8 @@
 
 ifneq ($(TARGET_NO_TELEPHONY),true)
 
-# Override the inherited Wi-Fi-only resources before lower-priority overlays.
-PRODUCT_PACKAGE_OVERLAYS := device/virt/virtio-common/framework-overlay $(PRODUCT_PACKAGE_OVERLAYS)
+# apply.sh includes virtio-sim-product.mk in each top-level Lineage product.
+# Overlay priority must be set there, ahead of Wi-Fi-only inheritance markers.
 
 # Soong namespace for the Cuttlefish guest RIL libraries we build against.
 PRODUCT_SOONG_NAMESPACES += device/google/cuttlefish

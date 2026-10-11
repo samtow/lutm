@@ -75,3 +75,6 @@ echo "run-host-tests.sh: compiler: $CXX"
     "$HERE/overlay/modem_console/sms_pdu.cpp"
 
 python3 "$HERE/tests/console_transport_test.py" "$OUT/modem_console"
+
+# Compile the actual patched channel monitor, not a parallel toy queue.
+python3 "$HERE/tests/channel_monitor_test.py" "$CXX" "$MS_SOURCE"

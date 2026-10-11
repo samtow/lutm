@@ -36,6 +36,14 @@ if ! grep -Eq 'VMADDR_CID_(HOST|LOCAL)' "$RIL"; then
     exit 1
 fi
 
+shopt -s nullglob
+SIM_PRODUCTS=("$TREE"/device/virt/virtio_*/lineage_virtio_*.mk)
+shopt -u nullglob
+if [ "${#SIM_PRODUCTS[@]}" -eq 0 ]; then
+    echo "apply.sh: no top-level Lineage virtio products found; cannot establish SIM overlay priority" >&2
+    exit 1
+fi
+
 python3 "$HERE/patch_ota_zip.py" "$OTA_SOURCE"
 
 # Lineage's kernel make rules otherwise treat custom relative outputs as absolute.
@@ -99,6 +107,15 @@ append_once "$DEVICE/device-common.mk" \
 
 append_once "$DEVICE/BoardConfigCommon.mk" \
     'include device/virt/virtio-common/virtio-sim-board.mk'
+
+# Product inheritance expands each branch in its original position. Lineage
+# inherits Wi-Fi-only before the device branch, so a device-local prepend loses.
+# A direct include makes this override local to the root product and places it
+# before every inherited branch, including the earlier Wi-Fi-only branch.
+for product in "${SIM_PRODUCTS[@]}"; do
+    append_once "$product" \
+        'include device/virt/virtio-common/virtio-sim-product.mk'
+done
 
 # The Cuttlefish guest RIL connects to the modem over VSOCK. On a real Cuttlefish
 # the modem simulator runs on the host, so the RIL targets VMADDR_CID_HOST. Here

@@ -75,6 +75,9 @@ breakfast() {
 m() { python3 "$MOCK_COMMAND" build "$@"; }
 get_build_var() {
     case "$1" in
+        TARGET_NO_TELEPHONY) printf '%s\n' "${MOCK_NO_TELEPHONY:-false}" ;;
+        PRODUCT_PACKAGE_OVERLAYS)
+            printf '%s\n' "${MOCK_SIM_OVERLAYS-device/virt/virtio-common/framework-overlay vendor/lineage/overlay/wifionly}" ;;
         AB_OTA_UPDATER) printf '%s\n' "${MOCK_AB_OVERRIDE:-$AB_OTA_UPDATER}" ;;
         TARGET_NO_RECOVERY) printf '%s\n' "${MOCK_NO_RECOVERY:-$AB_OTA_UPDATER}" ;;
         BOARD_INCLUDE_RECOVERY_RAMDISK_IN_VENDOR_BOOT) printf '%s\n' "$AB_OTA_UPDATER" ;;
@@ -214,6 +217,25 @@ class BuildReleaseTest(unittest.TestCase):
         self.assertEqual((output / "recovery_arm64only-userdebug.img").read_text(),
                          "non-ab userdebug recovery")
         self.assertFalse((output / "target/product/virtio_arm64only/recovery_arm64only-userdebug.img").exists())
+
+    def test_wifi_only_overlay_priority_fails_before_compilation(self):
+        for layout in ("non-ab", "ab"):
+            with self.subTest(layout=layout):
+                if self.log.exists():
+                    self.log.unlink()
+                result = self.build(
+                    layout=layout,
+                    MOCK_SIM_OVERLAYS="vendor/lineage/overlay/wifionly device/virt/virtio-common/framework-overlay",
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("SIM framework overlay must have highest product priority", result.stderr)
+                self.assertFalse(any(item["operation"] == "build" for item in self.commands()))
+
+    def test_missing_sim_overlay_fails_before_compilation(self):
+        result = self.build(layout="non-ab", MOCK_SIM_OVERLAYS="")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("SIM framework overlay must have highest product priority", result.stderr)
+        self.assertFalse(any(item["operation"] == "build" for item in self.commands()))
 
     def test_single_ab_build_ships_vendor_boot_not_standalone_recovery(self):
         result = self.build(layout="ab")
