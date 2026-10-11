@@ -58,6 +58,32 @@ class CollectorTest(unittest.TestCase):
         self.assertNotEqual(result['layouts'][0]['status'], 'complete')
         self.assertEqual(result['layouts'][0]['downloads'], [])
 
+    def test_single_layout_run_completes_without_requiring_ab(self):
+        (self.root / '.lutm-build.json').write_text(json.dumps({
+            'product': 'virtio_arm64only', 'layouts': ['non-ab'],
+        }))
+        self.mark_verified_layout('non-ab')
+        (self.root / 'build.exit').write_text('0')
+        (self.root / 'pipeline.exit').write_text('0')
+        result = collector.collect(self.root)
+        self.assertEqual(result['status'], 'complete')
+        self.assertEqual([layout['id'] for layout in result['layouts']], ['non-ab'])
+
+    def test_single_layout_build_only_is_built(self):
+        (self.root / '.lutm-build.json').write_text(json.dumps({'layouts': ['ab']}))
+        self.write_release('ab')
+        (self.root / 'build.exit').write_text('0')
+        result = collector.collect(self.root)
+        self.assertEqual(result['status'], 'built')
+        self.assertEqual([layout['id'] for layout in result['layouts']], ['ab'])
+
+    def test_invalid_layout_selection_does_not_claim_completion(self):
+        for layouts in ([], ['unknown'], ['ab', 'ab'], 'non-ab', [None]):
+            with self.subTest(layouts=layouts):
+                (self.root / '.lutm-build.json').write_text(json.dumps({'layouts': layouts}))
+                with self.assertRaisesRegex(ValueError, 'unsupported build layouts'):
+                    collector.collect(self.root)
+
     def test_successful_build_only_run_is_built_for_both_layouts(self):
         (self.root / 'build.exit').write_text('0')
         for layout in ('non-ab', 'ab'):

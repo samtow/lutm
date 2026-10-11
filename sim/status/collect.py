@@ -102,6 +102,21 @@ def _resolve_product(root, requested):
     return product if isinstance(product, str) and product in PRODUCTS else "virtio_arm64only"
 
 
+def _resolve_layouts(root):
+    try:
+        metadata = json.loads((root / ".lutm-build.json").read_text())
+    except (OSError, ValueError):
+        return LAYOUTS
+    if not isinstance(metadata, dict) or "layouts" not in metadata:
+        return LAYOUTS
+    layouts = metadata["layouts"]
+    if (not isinstance(layouts, list) or not layouts or
+            any(not isinstance(layout, str) or layout not in LAYOUTS for layout in layouts) or
+            len(set(layouts)) != len(layouts)):
+        raise ValueError("unsupported build layouts")
+    return tuple(layouts)
+
+
 def _release_is_built(root, product, layout):
     release = root / "android/lineage/out/releases" / product / layout / "release.json"
     try:
@@ -164,6 +179,7 @@ def _activity_summary(progress):
 def collect(root, product=None):
     root = Path(root)
     product = _resolve_product(root, product)
+    selected_layouts = _resolve_layouts(root)
     state_file = root / ".lutm-status.json"
     state = _read_state(state_file)
     markers = {}
@@ -222,11 +238,11 @@ def collect(root, product=None):
 
     state_file.write_text(json.dumps(state))
     bootstrap_failed = markers.get("bootstrap", 0) != 0
-    builds = {layout: _release_is_built(root, product, layout) for layout in LAYOUTS}
+    builds = {layout: _release_is_built(root, product, layout) for layout in selected_layouts}
     layouts = []
     post_processing_started = False
 
-    for layout in LAYOUTS:
+    for layout in selected_layouts:
         built = builds[layout]
         post_started = _post_steps_started(root, markers, layout)
         post_processing_started |= post_started

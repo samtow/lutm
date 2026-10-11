@@ -4,8 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "node preview.mjs",
-    "deploy": "node bundle-assets.mjs && convex deploy",
-    "check": "node bundle-assets.mjs && convex codegen && convex deploy --dry-run",
+    "deploy": "node bundle-assets.mjs && node convex-cli.mjs deploy",
+    "check": "node bundle-assets.mjs && node convex-cli.mjs codegen && node convex-cli.mjs deploy --dry-run",
     "launch": "node launch.mjs",
     "test": "python3 -m unittest discover -s . -p 'test_*.py' && node --test *.test.mjs"
   },
